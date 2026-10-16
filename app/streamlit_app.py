@@ -23,14 +23,14 @@ except Exception:
 with col2:
     st.markdown("### Timer display")
     if start and total_seconds > 0:
-        # Choose font size depending on presentation mode
-        font_px = 220 if presentation else 120
-        height = 520 if presentation else 360
+        # For presentation mode we use viewport-relative units so fullscreen shows very large digits
+        font_size_css = '50vh' if presentation else '220px'
+        height = 620 if presentation else 420
         html = f"""
         <div id="root" style="display:flex;align-items:center;justify-content:center;height:100%;width:100%;background:#000;">
-          <div id="container" style="text-align:center;padding:10px;color:#111;">
+          <div id="container" style="text-align:center;padding:10px;color:#fff; width:100%;">
             <div id="label" style="font-size:28px;color:#fff;margin-bottom:6px;">Timer</div>
-            <div id="timer" style="font-size:{font_px}px;font-weight:700;color:#fff;letter-spacing:6px;"></div>
+            <div id="timer" style="font-size:var(--timer-font-size);font-weight:700;color:#fff;letter-spacing:6px;line-height:0.9;">00:00</div>
             <div style="margin-top:18px;">
               <button id="fullscreen" style="font-size:18px;padding:8px 16px;margin-right:8px;">Fullscreen</button>
               <button id="pause" style="font-size:18px;padding:8px 16px;margin-right:8px;">Pause</button>
@@ -42,6 +42,9 @@ with col2:
         </div>
 
         <script>
+          // set CSS variable for timer font size
+          document.documentElement.style.setProperty('--timer-font-size', '{font_size_css}');
+
           const DURATION = {total_seconds};
           let remaining = DURATION;
           let interval = null;
@@ -101,13 +104,25 @@ with col2:
             updateDisplay();
             document.getElementById('label').innerText = 'Timer';
           }};
+
           // Fullscreen support (may be limited by browser/iframe)
           document.getElementById('fullscreen').onclick = function() {{
-            const el = document.getElementById('root');
+            const el = document.documentElement; // request fullscreen on the iframe document
             if (el.requestFullscreen) el.requestFullscreen();
             else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen(); // Safari
             else if (el.msRequestFullscreen) el.msRequestFullscreen();
           }};
+
+          // When fullscreen changes, ensure the font size uses viewport units so digits fill the screen
+          document.addEventListener('fullscreenchange', () => {{
+            if (document.fullscreenElement) {{
+              // in fullscreen, make timer huge using viewport height
+              document.documentElement.style.setProperty('--timer-font-size', '50vh');
+            }} else {{
+              // restore configured size
+              document.documentElement.style.setProperty('--timer-font-size', '{font_size_css}');
+            }}
+          }});
 
           // initialize and auto-start ticking
           updateDisplay();
