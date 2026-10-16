@@ -1,7 +1,6 @@
 import streamlit as st
 
 st.set_page_config(page_title="Classroom Timer", layout="wide")
-
 st.title("Classroom Timer")
 st.write("Choose a timer type, set your time, and use the large display for class presentation.")
 
@@ -12,6 +11,7 @@ with left_col:
     minutes = st.number_input("Minutes", min_value=0, max_value=600, value=1, step=1, format="%d")
     seconds = st.number_input("Seconds", min_value=0, max_value=59, value=0, step=1, format="%d")
     presentation_mode = st.checkbox("Presentation mode (large display)", value=True)
+    start_button = st.button("Start")
 
 try:
     total_seconds = int(minutes) * 60 + int(seconds)
@@ -76,10 +76,17 @@ with right_col:
       .hidden {
         display: none !important;
       }
+      .notice {
+        color: #ffd54f;
+        font-weight: 700;
+        margin-bottom: 16px;
+        font-size: 16px;
+      }
     </style>
 
     <div id="timer-root">
       <div id="timer-shell">
+        <div class="notice">Click "Enable sound" before starting.</div>
         <div id="timer-label">{timer_mode}</div>
         <div id="timer-value">00:00</div>
         <div id="controls">
@@ -101,11 +108,11 @@ with right_col:
       let intervalId = null;
       let audioCtx = null;
       let finished = false;
+      let alarmInterval = null;
 
       const valueEl = document.getElementById('timer-value');
       const labelEl = document.getElementById('timer-label');
       const rootEl = document.getElementById('timer-root');
-      const controlsEl = document.getElementById('controls');
 
       function formatClock(totalSeconds) {
         const mins = Math.floor(totalSeconds / 60).toString().padStart(2, '0');
@@ -153,21 +160,27 @@ with right_col:
       }
 
       function playAlarm() {
-        // play 3 beeps in sequence for stronger notice
-        _playBeepOnce(880, 0.25);
-        setTimeout(() => _playBeepOnce(880, 0.25), 400);
-        setTimeout(() => _playBeepOnce(660, 0.4), 800);
+        if (alarmInterval) {
+          clearInterval(alarmInterval);
+          alarmInterval = null;
+        }
+
+        const pattern = [880, 660, 880];
+        let index = 0;
+        alarmInterval = setInterval(() => {
+          if (index >= pattern.length) {
+            index = 0;
+          }
+          _playBeepOnce(pattern[index], 0.35);
+          index += 1;
+        }, 500);
       }
 
       function playTest() {
-        // quick test beep to prime audio
         _playBeepOnce(1000, 0.12);
       }
 
       function flashComplete() {
-        // more obvious blinking: alternate body background and add overlay
-        const origBg = document.body.style.backgroundColor || '';
-        let flashes = 0;
         const flashEl = document.createElement('div');
         flashEl.style.position = 'fixed';
         flashEl.style.top = '0';
@@ -178,19 +191,14 @@ with right_col:
         flashEl.style.pointerEvents = 'none';
         document.body.appendChild(flashEl);
 
+        let flashes = 0;
         const interval = setInterval(() => {
-          if (flashes % 2 === 0) {
-            flashEl.style.background = '#fff176';
-            flashEl.style.opacity = '0.95';
-          } else {
-            flashEl.style.background = '#ff5252';
-            flashEl.style.opacity = '0.9';
-          }
+          flashEl.style.background = (flashes % 2 === 0) ? '#fff176' : '#ff5252';
+          flashEl.style.opacity = '0.95';
           flashes += 1;
           if (flashes > 9) {
             clearInterval(interval);
             flashEl.remove();
-            document.body.style.backgroundColor = origBg;
           }
         }, 300);
       }
@@ -207,7 +215,6 @@ with right_col:
           valueEl.textContent = '00:00';
           labelEl.textContent = 'TIME!';
         } else {
-          // for count-up, just do a short alert
           playAlarm();
           flashComplete();
         }
@@ -232,10 +239,8 @@ with right_col:
 
       function startTimer() {
         if (intervalId) return;
-        // user gesture inside component - ensures audio can be used
         ensureAudio();
         if (finished) {
-          // restart after finish
           remaining = TOTAL_SECONDS;
           elapsed = 0;
           finished = false;
@@ -268,6 +273,10 @@ with right_col:
           clearInterval(intervalId);
           intervalId = null;
         }
+        if (alarmInterval) {
+          clearInterval(alarmInterval);
+          alarmInterval = null;
+        }
         remaining = TOTAL_SECONDS;
         elapsed = 0;
         finished = false;
@@ -276,10 +285,8 @@ with right_col:
       }
 
       document.getElementById('enable-sound').onclick = function() {
-        // Prime audio system with a short test beep - must be user gesture
         ensureAudio();
         playTest();
-        // give user feedback by briefly changing the enable button text
         const btn = document.getElementById('enable-sound');
         btn.textContent = 'Sound enabled';
         setTimeout(() => btn.textContent = 'Enable sound', 1500);
@@ -318,5 +325,7 @@ with right_col:
     """
 
     html = html_template.replace('{display_font}', display_font).replace('{timer_mode}', timer_mode).replace('{total_seconds}', str(total_seconds))
-
     st.components.v1.html(html, height=height_px)
+
+if start_button:
+    st.rerun()
