@@ -2,7 +2,12 @@
 
 Collection of timers to use in the classroom.
 
-This repository now includes a small Streamlit app that runs browser-based timers (countdown, interval, and Pomodoro). The timers are implemented as embeddable HTML/JavaScript so they run in the visitor's browser and do not block the Streamlit server.
+This repository now includes a user-friendly Streamlit timer for classroom presentation. It supports:
+- separate minute and second inputs
+- a very large display
+- a sound alarm when the timer finishes
+- a visual flash on completion
+- fullscreen support for display use
 
 How to run
 
@@ -16,6 +21,4 @@ pip install -r requirements.txt
 streamlit run app/streamlit_app.py
 ```
 
-Notes
-- The timers run client-side inside an HTML component; sound uses an external audio file and requires the browser to allow autoplay for the audio to play reliably.
-- This is a minimal starting point; I can add presets, shared (server-side) timers, or a teacher dashboard next.
+Then open the local Streamlit URL shown in the terminal.
