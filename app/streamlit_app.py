@@ -2,191 +2,267 @@ import streamlit as st
 
 st.set_page_config(page_title="Classroom Timer", layout="wide")
 
-st.title("Classroom Countdown Timer")
-st.write("Set minutes and seconds, then start the countdown. In presentation mode the numbers are large and easy to see from across the room.")
+st.title("Classroom Timer")
+st.write("Choose a timer type, set your time, and use the large display for class presentation.")
 
-col_left, col_right = st.columns([1, 2])
+left_col, right_col = st.columns([1, 2])
 
-with col_left:
+with left_col:
+    timer_mode = st.selectbox("Timer type", ["Countdown", "Count Up"], index=0)
     minutes = st.number_input("Minutes", min_value=0, max_value=600, value=1, step=1, format="%d")
     seconds = st.number_input("Seconds", min_value=0, max_value=59, value=0, step=1, format="%d")
     presentation_mode = st.checkbox("Presentation mode (large display)", value=True)
-    start = st.button("Start")
-    stop = st.button("Stop / Reset")
 
 try:
     total_seconds = int(minutes) * 60 + int(seconds)
 except Exception:
     total_seconds = 0
 
-with col_right:
-    if start and total_seconds > 0:
-        timer_font = "min(50vw, 50vh)" if presentation_mode else "220px"
-        height_px = 620 if presentation_mode else 420
+with right_col:
+    display_font = "min(50vw, 50vh)" if presentation_mode else "220px"
+    height_px = 620 if presentation_mode else 420
 
-        html = f"""
-        <style>
-          html, body {{
-            margin: 0;
-            padding: 0;
-            background: #000;
-          }}
-          #timer-root {{
-            width: 100%;
-            height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            background: #000;
-            color: #fff;
-            font-family: Arial, sans-serif;
-          }}
-          #timer-shell {{
-            text-align: center;
-            width: 100%;
-            padding: 20px;
-          }}
-          #timer-label {{
-            font-size: clamp(20px, 3vh, 36px);
-            margin-bottom: 12px;
-            letter-spacing: 0.08em;
-            text-transform: uppercase;
-          }}
-          #timer-value {{
-            font-size: {timer_font};
-            font-weight: 800;
-            line-height: 0.9;
-            letter-spacing: 0.08em;
-            white-space: nowrap;
-          }}
-          #controls {{
-            margin-top: 20px;
-            display: flex;
-            justify-content: center;
-            flex-wrap: wrap;
-            gap: 10px;
-          }}
-          #controls button {{
-            font-size: 18px;
-            padding: 10px 18px;
-            cursor: pointer;
-            border-radius: 8px;
-            border: 1px solid #fff;
-            background: #111;
-            color: #fff;
-          }}
-          .hidden-controls {{
-            display: none !important;
-          }}
-        </style>
+    html = f"""
+    <style>
+      html, body {{
+        margin: 0;
+        padding: 0;
+        background: #000;
+        color: #fff;
+        font-family: Arial, sans-serif;
+      }}
+      #timer-root {{
+        width: 100%;
+        height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: #000;
+      }}
+      #timer-shell {{
+        width: 100%;
+        text-align: center;
+        padding: 20px;
+      }}
+      #timer-label {{
+        font-size: clamp(18px, 2.8vh, 36px);
+        text-transform: uppercase;
+        letter-spacing: 0.10em;
+        margin-bottom: 10px;
+      }}
+      #timer-value {{
+        font-size: {display_font};
+        line-height: 0.9;
+        font-weight: 800;
+        letter-spacing: 0.08em;
+        white-space: nowrap;
+      }}
+      #controls {{
+        margin-top: 22px;
+        display: flex;
+        justify-content: center;
+        flex-wrap: wrap;
+        gap: 10px;
+      }}
+      #controls button {{
+        padding: 10px 18px;
+        font-size: 18px;
+        border-radius: 8px;
+        border: 1px solid #fff;
+        background: #111;
+        color: #fff;
+        cursor: pointer;
+      }}
+      .hidden {{
+        display: none !important;
+      }}
+    </style>
 
-        <div id="timer-root">
-          <div id="timer-shell">
-            <div id="timer-label">Timer</div>
-            <div id="timer-value">00:00</div>
-            <div id="controls">
-              <button id="fullscreen">Fullscreen</button>
-              <button id="pause">Pause</button>
-              <button id="resume">Resume</button>
-              <button id="reset">Reset</button>
-            </div>
-            <audio id="beep" src="https://actions.google.com/sounds/v1/alarms/alarm_clock.ogg"></audio>
-          </div>
+    <div id="timer-root">
+      <div id="timer-shell">
+        <div id="timer-label">{timer_mode}</div>
+        <div id="timer-value">00:00</div>
+        <div id="controls">
+          <button id="start">Start</button>
+          <button id="pause">Pause</button>
+          <button id="resume">Resume</button>
+          <button id="reset">Reset</button>
+          <button id="fullscreen">Fullscreen</button>
         </div>
+      </div>
+    </div>
 
-        <script>
-          const DURATION = {total_seconds};
-          let remaining = DURATION;
-          let interval = null;
+    <script>
+      const MODE = '{timer_mode}';
+      const TOTAL_SECONDS = {total_seconds};
+      let remaining = TOTAL_SECONDS;
+      let elapsed = 0;
+      let intervalId = null;
+      let audioCtx = null;
 
-          const valueEl = document.getElementById('timer-value');
-          const labelEl = document.getElementById('timer-label');
-          const controlsEl = document.getElementById('controls');
-          const beep = document.getElementById('beep');
+      const valueEl = document.getElementById('timer-value');
+      const labelEl = document.getElementById('timer-label');
+      const rootEl = document.getElementById('timer-root');
+      const controlsEl = document.getElementById('controls');
 
-          function format(seconds) {{
-            const minutes = Math.floor(seconds / 60).toString().padStart(2, '0');
-            const secs = (seconds % 60).toString().padStart(2, '0');
-            return `${{minutes}}:${{secs}}`;
+      function formatClock(totalSeconds) {{
+        const mins = Math.floor(totalSeconds / 60).toString().padStart(2, '0');
+        const secs = (totalSeconds % 60).toString().padStart(2, '0');
+        return `${{mins}}:${{secs}}`;
+      }}
+
+      function updateDisplay() {{
+        if (MODE === 'Countdown') {{
+          valueEl.textContent = formatClock(remaining);
+        }} else {{
+          valueEl.textContent = formatClock(elapsed);
+        }}
+      }}
+
+      function ensureAudio() {{
+        if (!audioCtx) {{
+          const AudioCtor = window.AudioContext || window.webkitAudioContext;
+          if (!AudioCtor) {{
+            return null;
           }}
+          audioCtx = new AudioCtor();
+        }}
+        if (audioCtx.state === 'suspended') {{
+          audioCtx.resume();
+        }}
+        return audioCtx;
+      }}
 
-          function updateDisplay() {{
-            valueEl.textContent = format(remaining);
+      function playAlarm() {{
+        const ctx = ensureAudio();
+        if (!ctx) {{
+          return;
+        }}
+
+        const oscillator = ctx.createOscillator();
+        const gainNode = ctx.createGain();
+        oscillator.type = 'sine';
+        oscillator.frequency.value = 880;
+        gainNode.gain.value = 0.0001;
+
+        oscillator.connect(gainNode);
+        gainNode.connect(ctx.destination);
+
+        const now = ctx.currentTime;
+        gainNode.gain.exponentialRampToValueAtTime(0.2, now + 0.02);
+        gainNode.gain.exponentialRampToValueAtTime(0.0001, now + 0.5);
+        oscillator.start(now);
+        oscillator.stop(now + 0.5);
+      }}
+
+      function flashComplete() {{
+        const flash = document.createElement('div');
+        flash.style.position = 'fixed';
+        flash.style.top = '0';
+        flash.style.left = '0';
+        flash.style.width = '100vw';
+        flash.style.height = '100vh';
+        flash.style.background = '#fff176';
+        flash.style.opacity = '0.95';
+        flash.style.zIndex = '999999';
+        document.body.appendChild(flash);
+        setTimeout(() => flash.remove(), 1500);
+      }}
+
+      function finishTimer() {{
+        if (intervalId) {{
+          clearInterval(intervalId);
+          intervalId = null;
+        }}
+        if (MODE === 'Countdown') {{
+          playAlarm();
+          flashComplete();
+          valueEl.textContent = '00:00';
+          labelEl.textContent = 'TIME!';
+        }}
+      }}
+
+      function tickCountdown() {{
+        if (remaining <= 0) {{
+          finishTimer();
+          return;
+        }}
+        remaining -= 1;
+        updateDisplay();
+        if (remaining <= 0) {{
+          finishTimer();
+        }}
+      }}
+
+      function tickCountUp() {{
+        elapsed += 1;
+        updateDisplay();
+      }}
+
+      function startTimer() {{
+        if (intervalId) return;
+
+        ensureAudio();
+        if (MODE === 'Countdown') {{
+          if (remaining <= 0) {{
+            remaining = TOTAL_SECONDS;
           }}
+          labelEl.textContent = 'Countdown';
+          intervalId = setInterval(tickCountdown, 1000);
+        }} else {{
+          elapsed = 0;
+          labelEl.textContent = 'Count Up';
+          intervalId = setInterval(tickCountUp, 1000);
+        }}
+      }}
 
-          function onComplete() {{
-            try {{ beep.play().catch(() => {{}}); }} catch (err) {{}}
+      function pauseTimer() {{
+        if (intervalId) {{
+          clearInterval(intervalId);
+          intervalId = null;
+        }}
+      }}
 
-            const flash = document.createElement('div');
-            flash.style.position = 'fixed';
-            flash.style.top = '0';
-            flash.style.left = '0';
-            flash.style.width = '100vw';
-            flash.style.height = '100vh';
-            flash.style.background = '#fff176';
-            flash.style.zIndex = '99999';
-            flash.style.opacity = '0.95';
-            document.body.appendChild(flash);
-            setTimeout(() => flash.remove(), 1400);
+      function resetTimer() {{
+        if (intervalId) {{
+          clearInterval(intervalId);
+          intervalId = null;
+        }}
+        remaining = TOTAL_SECONDS;
+        elapsed = 0;
+        labelEl.textContent = MODE;
+        updateDisplay();
+      }}
 
-            valueEl.textContent = '00:00';
-            labelEl.textContent = 'TIME!';
-          }}
+      document.getElementById('start').onclick = function() {{
+        startTimer();
+      }};
+      document.getElementById('pause').onclick = function() {{
+        pauseTimer();
+      }};
+      document.getElementById('resume').onclick = function() {{
+        if (intervalId) return;
+        if (MODE === 'Countdown') {{
+          intervalId = setInterval(tickCountdown, 1000);
+        }} else {{
+          intervalId = setInterval(tickCountUp, 1000);
+        }}
+      }};
+      document.getElementById('reset').onclick = function() {{
+        resetTimer();
+      }};
+      document.getElementById('fullscreen').onclick = function() {{
+        if (rootEl.requestFullscreen) {{
+          rootEl.requestFullscreen();
+        }} else if (rootEl.webkitRequestFullscreen) {{
+          rootEl.webkitRequestFullscreen();
+        }} else if (rootEl.msRequestFullscreen) {{
+          rootEl.msRequestFullscreen();
+        }}
+      }};
 
-          function tick() {{
-            if (remaining <= 0) {{
-              clearInterval(interval);
-              interval = null;
-              onComplete();
-              return;
-            }}
-            remaining -= 1;
-            updateDisplay();
-          }}
+      updateDisplay();
+    </script>
+    """
 
-          document.getElementById('pause').onclick = function() {{
-            if (interval) {{
-              clearInterval(interval);
-              interval = null;
-            }}
-          }};
-
-          document.getElementById('resume').onclick = function() {{
-            if (!interval && remaining > 0) {{
-              interval = setInterval(tick, 1000);
-            }}
-          }};
-
-          document.getElementById('reset').onclick = function() {{
-            if (interval) {{
-              clearInterval(interval);
-              interval = null;
-            }}
-            remaining = DURATION;
-            updateDisplay();
-            labelEl.textContent = 'Timer';
-          }};
-
-          document.getElementById('fullscreen').onclick = function() {{
-            const root = document.getElementById('timer-root');
-            if (root.requestFullscreen) root.requestFullscreen();
-            else if (root.webkitRequestFullscreen) root.webkitRequestFullscreen();
-            else if (root.msRequestFullscreen) root.msRequestFullscreen();
-          }};
-
-          updateDisplay();
-          if (!interval) interval = setInterval(tick, 1000);
-        </script>
-        """
-        st.components.v1.html(html, height=height_px)
-    else:
-        preview_font = "min(30vw, 30vh)" if presentation_mode else "160px"
-        preview = f"""
-        <div style="display:flex;align-items:center;justify-content:center;height:300px;width:100%;background:#000;color:#fff;font-family:Arial,sans-serif;">
-          <div style="font-size:{preview_font};font-weight:800;letter-spacing:0.08em;line-height:0.9;white-space:nowrap;">{int(minutes):02d}:{int(seconds):02d}</div>
-        </div>
-        """
-        st.components.v1.html(preview, height=300)
-
-if stop:
-    st.rerun()
+    st.components.v1.html(html, height=height_px)
