@@ -22,49 +22,49 @@ with right_col:
     display_font = "min(50vw, 50vh)" if presentation_mode else "220px"
     height_px = 620 if presentation_mode else 420
 
-    html = f"""
+    html_template = """
     <style>
-      html, body {{
+      html, body {
         margin: 0;
         padding: 0;
         background: #000;
         color: #fff;
         font-family: Arial, sans-serif;
-      }}
-      #timer-root {{
+      }
+      #timer-root {
         width: 100%;
         height: 100vh;
         display: flex;
         align-items: center;
         justify-content: center;
         background: #000;
-      }}
-      #timer-shell {{
+      }
+      #timer-shell {
         width: 100%;
         text-align: center;
         padding: 20px;
-      }}
-      #timer-label {{
+      }
+      #timer-label {
         font-size: clamp(18px, 2.8vh, 36px);
         text-transform: uppercase;
         letter-spacing: 0.10em;
         margin-bottom: 10px;
-      }}
-      #timer-value {{
+      }
+      #timer-value {
         font-size: {display_font};
         line-height: 0.9;
         font-weight: 800;
         letter-spacing: 0.08em;
         white-space: nowrap;
-      }}
-      #controls {{
+      }
+      #controls {
         margin-top: 22px;
         display: flex;
         justify-content: center;
         flex-wrap: wrap;
         gap: 10px;
-      }}
-      #controls button {{
+      }
+      #controls button {
         padding: 10px 18px;
         font-size: 18px;
         border-radius: 8px;
@@ -72,10 +72,10 @@ with right_col:
         background: #111;
         color: #fff;
         cursor: pointer;
-      }}
-      .hidden {{
+      }
+      .hidden {
         display: none !important;
-      }}
+      }
     </style>
 
     <div id="timer-root">
@@ -107,35 +107,35 @@ with right_col:
       const rootEl = document.getElementById('timer-root');
       const controlsEl = document.getElementById('controls');
 
-      function formatClock(totalSeconds) {{
+      function formatClock(totalSeconds) {
         const mins = Math.floor(totalSeconds / 60).toString().padStart(2, '0');
         const secs = (totalSeconds % 60).toString().padStart(2, '0');
-        return `${{mins}}:${{secs}}`;
-      }}
+        return `${mins}:${secs}`;
+      }
 
-      function updateDisplay() {{
-        if (MODE === 'Countdown') {{
+      function updateDisplay() {
+        if (MODE === 'Countdown') {
           valueEl.textContent = formatClock(remaining);
-        }} else {{
+        } else {
           valueEl.textContent = formatClock(elapsed);
-        }}
-      }}
+        }
+      }
 
-      function ensureAudio() {{
-        if (!audioCtx) {{
+      function ensureAudio() {
+        if (!audioCtx) {
           const AudioCtor = window.AudioContext || window.webkitAudioContext;
-          if (!AudioCtor) {{
+          if (!AudioCtor) {
             return null;
-          }}
+          }
           audioCtx = new AudioCtor();
-        }}
-        if (audioCtx.state === 'suspended') {{
+        }
+        if (audioCtx.state === 'suspended') {
           audioCtx.resume();
-        }}
+        }
         return audioCtx;
-      }}
+      }
 
-      function _playBeepOnce(freq=880, duration=0.25) {{
+      function _playBeepOnce(freq=880, duration=0.25) {
         const ctx = ensureAudio();
         if (!ctx) return;
         const osc = ctx.createOscillator();
@@ -152,19 +152,19 @@ with right_col:
         osc.stop(now + duration + 0.02);
       }
 
-      function playAlarm() {{
+      function playAlarm() {
         // play 3 beeps in sequence for stronger notice
         _playBeepOnce(880, 0.25);
         setTimeout(() => _playBeepOnce(880, 0.25), 400);
         setTimeout(() => _playBeepOnce(660, 0.4), 800);
-      }}
+      }
 
-      function playTest() {{
+      function playTest() {
         // quick test beep to prime audio
         _playBeepOnce(1000, 0.12);
       }
 
-      function flashComplete() {{
+      function flashComplete() {
         // more obvious blinking: alternate body background and add overlay
         const origBg = document.body.style.backgroundColor || '';
         let flashes = 0;
@@ -178,104 +178,104 @@ with right_col:
         flashEl.style.pointerEvents = 'none';
         document.body.appendChild(flashEl);
 
-        const interval = setInterval(() => {{
-          if (flashes % 2 === 0) {{
+        const interval = setInterval(() => {
+          if (flashes % 2 === 0) {
             flashEl.style.background = '#fff176';
             flashEl.style.opacity = '0.95';
-          }} else {{
+          } else {
             flashEl.style.background = '#ff5252';
             flashEl.style.opacity = '0.9';
-          }}
+          }
           flashes += 1;
-          if (flashes > 9) {{
+          if (flashes > 9) {
             clearInterval(interval);
             flashEl.remove();
             document.body.style.backgroundColor = origBg;
-          }}
-        }}, 300);
-      }}
+          }
+        }, 300);
+      }
 
-      function finishTimer() {{
-        if (intervalId) {{
+      function finishTimer() {
+        if (intervalId) {
           clearInterval(intervalId);
           intervalId = null;
-        }}
+        }
         finished = true;
-        if (MODE === 'Countdown') {{
+        if (MODE === 'Countdown') {
           playAlarm();
           flashComplete();
           valueEl.textContent = '00:00';
           labelEl.textContent = 'TIME!';
-        }} else {{
+        } else {
           // for count-up, just do a short alert
           playAlarm();
           flashComplete();
-        }}
-      }}
+        }
+      }
 
-      function tickCountdown() {{
-        if (remaining <= 0) {{
+      function tickCountdown() {
+        if (remaining <= 0) {
           finishTimer();
           return;
-        }}
+        }
         remaining -= 1;
         updateDisplay();
-        if (remaining <= 0) {{
+        if (remaining <= 0) {
           finishTimer();
-        }}
-      }}
+        }
+      }
 
-      function tickCountUp() {{
+      function tickCountUp() {
         elapsed += 1;
         updateDisplay();
-      }}
+      }
 
-      function startTimer() {{
+      function startTimer() {
         if (intervalId) return;
         // user gesture inside component - ensures audio can be used
         ensureAudio();
-        if (finished) {{
+        if (finished) {
           // restart after finish
           remaining = TOTAL_SECONDS;
           elapsed = 0;
           finished = false;
           labelEl.textContent = MODE;
-        }}
-        if (MODE === 'Countdown') {{
-          if (remaining <= 0) {{
+        }
+        if (MODE === 'Countdown') {
+          if (remaining <= 0) {
             remaining = TOTAL_SECONDS;
-          }}
+          }
           labelEl.textContent = 'Countdown';
           updateDisplay();
           intervalId = setInterval(tickCountdown, 1000);
-        }} else {{
+        } else {
           elapsed = 0;
           labelEl.textContent = 'Count Up';
           updateDisplay();
           intervalId = setInterval(tickCountUp, 1000);
-        }}
-      }}
+        }
+      }
 
-      function pauseTimer() {{
-        if (intervalId) {{
+      function pauseTimer() {
+        if (intervalId) {
           clearInterval(intervalId);
           intervalId = null;
-        }}
-      }}
+        }
+      }
 
-      function resetTimer() {{
-        if (intervalId) {{
+      function resetTimer() {
+        if (intervalId) {
           clearInterval(intervalId);
           intervalId = null;
-        }}
+        }
         remaining = TOTAL_SECONDS;
         elapsed = 0;
         finished = false;
         labelEl.textContent = MODE;
         updateDisplay();
-      }}
+      }
 
-      document.getElementById('enable-sound').onclick = function() {{
+      document.getElementById('enable-sound').onclick = function() {
         // Prime audio system with a short test beep - must be user gesture
         ensureAudio();
         playTest();
@@ -283,38 +283,40 @@ with right_col:
         const btn = document.getElementById('enable-sound');
         btn.textContent = 'Sound enabled';
         setTimeout(() => btn.textContent = 'Enable sound', 1500);
-      }};
+      };
 
-      document.getElementById('start').onclick = function() {{
+      document.getElementById('start').onclick = function() {
         startTimer();
-      }};
-      document.getElementById('pause').onclick = function() {{
+      };
+      document.getElementById('pause').onclick = function() {
         pauseTimer();
-      }};
-      document.getElementById('resume').onclick = function() {{
+      };
+      document.getElementById('resume').onclick = function() {
         if (intervalId) return;
-        if (MODE === 'Countdown') {{
+        if (MODE === 'Countdown') {
           intervalId = setInterval(tickCountdown, 1000);
-        }} else {{
+        } else {
           intervalId = setInterval(tickCountUp, 1000);
-        }}
-      }};
-      document.getElementById('reset').onclick = function() {{
+        }
+      };
+      document.getElementById('reset').onclick = function() {
         resetTimer();
-      }};
+      };
 
-      document.getElementById('fullscreen').onclick = function() {{
-        if (rootEl.requestFullscreen) {{
+      document.getElementById('fullscreen').onclick = function() {
+        if (rootEl.requestFullscreen) {
           rootEl.requestFullscreen();
-        }} else if (rootEl.webkitRequestFullscreen) {{
+        } else if (rootEl.webkitRequestFullscreen) {
           rootEl.webkitRequestFullscreen();
-        }} else if (rootEl.msRequestFullscreen) {{
+        } else if (rootEl.msRequestFullscreen) {
           rootEl.msRequestFullscreen();
-        }}
-      }};
+        }
+      };
 
       updateDisplay();
     </script>
     """
+
+    html = html_template.replace('{display_font}', display_font).replace('{timer_mode}', timer_mode).replace('{total_seconds}', str(total_seconds))
 
     st.components.v1.html(html, height=height_px)
