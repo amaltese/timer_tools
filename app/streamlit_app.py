@@ -1,84 +1,136 @@
 import streamlit as st
 
 st.set_page_config(page_title="Classroom Timer", layout="wide")
-st.title("Classroom Timer")
-st.write("Enter minutes and seconds, then press Start. Use Presentation Mode for a very large display.")
 
-# Inputs
-col1, col2 = st.columns([1, 2])
-with col1:
+st.title("Classroom Countdown Timer")
+st.write("Set minutes and seconds, then start the countdown. In presentation mode the numbers are large and easy to see from across the room.")
+
+col_left, col_right = st.columns([1, 2])
+
+with col_left:
     minutes = st.number_input("Minutes", min_value=0, max_value=600, value=1, step=1, format="%d")
     seconds = st.number_input("Seconds", min_value=0, max_value=59, value=0, step=1, format="%d")
-    presentation = st.checkbox("Presentation mode (large display)", value=True)
+    presentation_mode = st.checkbox("Presentation mode (large display)", value=True)
     start = st.button("Start")
     stop = st.button("Stop / Reset")
 
-# compute total seconds
 try:
     total_seconds = int(minutes) * 60 + int(seconds)
 except Exception:
     total_seconds = 0
 
-# Helper: preview or run component
-with col2:
-    st.markdown("### Timer display")
+with col_right:
     if start and total_seconds > 0:
-        # For presentation mode we use viewport-relative units so fullscreen shows very large digits
-        font_size_css = '50vh' if presentation else '220px'
-        height = 620 if presentation else 420
+        timer_font = "min(50vw, 50vh)" if presentation_mode else "220px"
+        height_px = 620 if presentation_mode else 420
+
         html = f"""
-        <div id="root" style="display:flex;align-items:center;justify-content:center;height:100%;width:100%;background:#000;">
-          <div id="container" style="text-align:center;padding:10px;color:#fff; width:100%;">
-            <div id="label" style="font-size:28px;color:#fff;margin-bottom:6px;">Timer</div>
-            <div id="timer" style="font-size:var(--timer-font-size);font-weight:700;color:#fff;letter-spacing:6px;line-height:0.9;">00:00</div>
-            <div style="margin-top:18px;">
-              <button id="fullscreen" style="font-size:18px;padding:8px 16px;margin-right:8px;">Fullscreen</button>
-              <button id="pause" style="font-size:18px;padding:8px 16px;margin-right:8px;">Pause</button>
-              <button id="resume" style="font-size:18px;padding:8px 16px;margin-right:8px;">Resume</button>
-              <button id="reset" style="font-size:18px;padding:8px 16px;">Reset</button>
+        <style>
+          html, body {{
+            margin: 0;
+            padding: 0;
+            background: #000;
+          }}
+          #timer-root {{
+            width: 100%;
+            height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #000;
+            color: #fff;
+            font-family: Arial, sans-serif;
+          }}
+          #timer-shell {{
+            text-align: center;
+            width: 100%;
+            padding: 20px;
+          }}
+          #timer-label {{
+            font-size: clamp(20px, 3vh, 36px);
+            margin-bottom: 12px;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+          }}
+          #timer-value {{
+            font-size: {timer_font};
+            font-weight: 800;
+            line-height: 0.9;
+            letter-spacing: 0.08em;
+            white-space: nowrap;
+          }}
+          #controls {{
+            margin-top: 20px;
+            display: flex;
+            justify-content: center;
+            flex-wrap: wrap;
+            gap: 10px;
+          }}
+          #controls button {{
+            font-size: 18px;
+            padding: 10px 18px;
+            cursor: pointer;
+            border-radius: 8px;
+            border: 1px solid #fff;
+            background: #111;
+            color: #fff;
+          }}
+          .hidden-controls {{
+            display: none !important;
+          }}
+        </style>
+
+        <div id="timer-root">
+          <div id="timer-shell">
+            <div id="timer-label">Timer</div>
+            <div id="timer-value">00:00</div>
+            <div id="controls">
+              <button id="fullscreen">Fullscreen</button>
+              <button id="pause">Pause</button>
+              <button id="resume">Resume</button>
+              <button id="reset">Reset</button>
             </div>
             <audio id="beep" src="https://actions.google.com/sounds/v1/alarms/alarm_clock.ogg"></audio>
           </div>
         </div>
 
         <script>
-          // set CSS variable for timer font size
-          document.documentElement.style.setProperty('--timer-font-size', '{font_size_css}');
-
           const DURATION = {total_seconds};
           let remaining = DURATION;
           let interval = null;
-          const timerEl = document.getElementById('timer');
-          const container = document.getElementById('container');
+
+          const valueEl = document.getElementById('timer-value');
+          const labelEl = document.getElementById('timer-label');
+          const controlsEl = document.getElementById('controls');
           const beep = document.getElementById('beep');
 
-          function format(s) {{
-            const m = Math.floor(s/60).toString().padStart(2,'0');
-            const sec = (s%60).toString().padStart(2,'0');
-            return `${{m}}:${{sec}}`;
+          function format(seconds) {{
+            const minutes = Math.floor(seconds / 60).toString().padStart(2, '0');
+            const secs = (seconds % 60).toString().padStart(2, '0');
+            return `${{minutes}}:${{secs}}`;
           }}
 
           function updateDisplay() {{
-            timerEl.innerText = format(remaining);
+            valueEl.textContent = format(remaining);
           }}
 
           function onComplete() {{
-            // play sound if allowed
-            try {{ beep.play().catch(()=>{{}}); }} catch(e){{}}
-            // flash background for emphasis
-            const origBg = document.body.style.backgroundColor || '';
-            let flashes = 0;
-            const flashInterval = setInterval(()=>{{
-              document.body.style.backgroundColor = (flashes % 2 === 0) ? '#fff176' : origBg;
-              flashes += 1;
-              if (flashes > 6) {{
-                clearInterval(flashInterval);
-                document.body.style.backgroundColor = origBg;
-              }}
-            }}, 300);
-            // big DONE indicator
-            timerEl.innerText = '00:00';
-            document.getElementById('label').innerText = 'TIME!';
+            try {{ beep.play().catch(() => {{}}); }} catch (err) {{}}
+
+            const flash = document.createElement('div');
+            flash.style.position = 'fixed';
+            flash.style.top = '0';
+            flash.style.left = '0';
+            flash.style.width = '100vw';
+            flash.style.height = '100vh';
+            flash.style.background = '#fff176';
+            flash.style.zIndex = '99999';
+            flash.style.opacity = '0.95';
+            document.body.appendChild(flash);
+            setTimeout(() => flash.remove(), 1400);
+
+            valueEl.textContent = '00:00';
+            labelEl.textContent = 'TIME!';
           }}
 
           function tick() {{
@@ -93,49 +145,48 @@ with col2:
           }}
 
           document.getElementById('pause').onclick = function() {{
-            if (interval) {{ clearInterval(interval); interval = null; }}
+            if (interval) {{
+              clearInterval(interval);
+              interval = null;
+            }}
           }};
+
           document.getElementById('resume').onclick = function() {{
-            if (!interval && remaining > 0) interval = setInterval(tick, 1000);
+            if (!interval && remaining > 0) {{
+              interval = setInterval(tick, 1000);
+            }}
           }};
+
           document.getElementById('reset').onclick = function() {{
-            if (interval) {{ clearInterval(interval); interval = null; }}
+            if (interval) {{
+              clearInterval(interval);
+              interval = null;
+            }}
             remaining = DURATION;
             updateDisplay();
-            document.getElementById('label').innerText = 'Timer';
+            labelEl.textContent = 'Timer';
           }};
 
-          // Fullscreen support (may be limited by browser/iframe)
           document.getElementById('fullscreen').onclick = function() {{
-            const el = document.documentElement; // request fullscreen on the iframe document
-            if (el.requestFullscreen) el.requestFullscreen();
-            else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen(); // Safari
-            else if (el.msRequestFullscreen) el.msRequestFullscreen();
+            const root = document.getElementById('timer-root');
+            if (root.requestFullscreen) root.requestFullscreen();
+            else if (root.webkitRequestFullscreen) root.webkitRequestFullscreen();
+            else if (root.msRequestFullscreen) root.msRequestFullscreen();
           }};
 
-          // When fullscreen changes, ensure the font size uses viewport units so digits fill the screen
-          document.addEventListener('fullscreenchange', () => {{
-            if (document.fullscreenElement) {{
-              // in fullscreen, make timer huge using viewport height
-              document.documentElement.style.setProperty('--timer-font-size', '50vh');
-            }} else {{
-              // restore configured size
-              document.documentElement.style.setProperty('--timer-font-size', '{font_size_css}');
-            }}
-          }});
-
-          // initialize and auto-start ticking
           updateDisplay();
           if (!interval) interval = setInterval(tick, 1000);
         </script>
         """
-        st.components.v1.html(html, height=height)
+        st.components.v1.html(html, height=height_px)
     else:
-        # show static preview with large numerals
-        preview_font = 200 if presentation else 120
-        preview = f"<div style='display:flex;align-items:center;justify-content:center;height:260px;width:100%;background:#000;'><div style='font-size:{preview_font}px;font-weight:700;color:#fff'>{int(minutes):02d}:{int(seconds):02d}</div></div>"
+        preview_font = "min(30vw, 30vh)" if presentation_mode else "160px"
+        preview = f"""
+        <div style="display:flex;align-items:center;justify-content:center;height:300px;width:100%;background:#000;color:#fff;font-family:Arial,sans-serif;">
+          <div style="font-size:{preview_font};font-weight:800;letter-spacing:0.08em;line-height:0.9;white-space:nowrap;">{int(minutes):02d}:{int(seconds):02d}</div>
+        </div>
+        """
         st.components.v1.html(preview, height=300)
 
-# global stop/reset behaviour note
 if stop:
     st.rerun()
