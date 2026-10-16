@@ -83,6 +83,7 @@ with right_col:
         <div id="timer-label">{timer_mode}</div>
         <div id="timer-value">00:00</div>
         <div id="controls">
+          <button id="enable-sound">Enable sound</button>
           <button id="start">Start</button>
           <button id="pause">Pause</button>
           <button id="resume">Resume</button>
@@ -99,6 +100,7 @@ with right_col:
       let elapsed = 0;
       let intervalId = null;
       let audioCtx = null;
+      let finished = false;
 
       const valueEl = document.getElementById('timer-value');
       const labelEl = document.getElementById('timer-label');
@@ -133,40 +135,64 @@ with right_col:
         return audioCtx;
       }}
 
-      function playAlarm() {{
+      function _playBeepOnce(freq=880, duration=0.25) {{
         const ctx = ensureAudio();
-        if (!ctx) {{
-          return;
-        }}
-
-        const oscillator = ctx.createOscillator();
-        const gainNode = ctx.createGain();
-        oscillator.type = 'sine';
-        oscillator.frequency.value = 880;
-        gainNode.gain.value = 0.0001;
-
-        oscillator.connect(gainNode);
-        gainNode.connect(ctx.destination);
-
+        if (!ctx) return;
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.value = freq;
+        gain.gain.value = 0.0001;
+        osc.connect(gain);
+        gain.connect(ctx.destination);
         const now = ctx.currentTime;
-        gainNode.gain.exponentialRampToValueAtTime(0.2, now + 0.02);
-        gainNode.gain.exponentialRampToValueAtTime(0.0001, now + 0.5);
-        oscillator.start(now);
-        oscillator.stop(now + 0.5);
+        gain.gain.exponentialRampToValueAtTime(0.2, now + 0.01);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + duration);
+        osc.start(now);
+        osc.stop(now + duration + 0.02);
+      }
+
+      function playAlarm() {{
+        // play 3 beeps in sequence for stronger notice
+        _playBeepOnce(880, 0.25);
+        setTimeout(() => _playBeepOnce(880, 0.25), 400);
+        setTimeout(() => _playBeepOnce(660, 0.4), 800);
       }}
 
+      function playTest() {{
+        // quick test beep to prime audio
+        _playBeepOnce(1000, 0.12);
+      }
+
       function flashComplete() {{
-        const flash = document.createElement('div');
-        flash.style.position = 'fixed';
-        flash.style.top = '0';
-        flash.style.left = '0';
-        flash.style.width = '100vw';
-        flash.style.height = '100vh';
-        flash.style.background = '#fff176';
-        flash.style.opacity = '0.95';
-        flash.style.zIndex = '999999';
-        document.body.appendChild(flash);
-        setTimeout(() => flash.remove(), 1500);
+        // more obvious blinking: alternate body background and add overlay
+        const origBg = document.body.style.backgroundColor || '';
+        let flashes = 0;
+        const flashEl = document.createElement('div');
+        flashEl.style.position = 'fixed';
+        flashEl.style.top = '0';
+        flashEl.style.left = '0';
+        flashEl.style.width = '100vw';
+        flashEl.style.height = '100vh';
+        flashEl.style.zIndex = '2147483647';
+        flashEl.style.pointerEvents = 'none';
+        document.body.appendChild(flashEl);
+
+        const interval = setInterval(() => {{
+          if (flashes % 2 === 0) {{
+            flashEl.style.background = '#fff176';
+            flashEl.style.opacity = '0.95';
+          }} else {{
+            flashEl.style.background = '#ff5252';
+            flashEl.style.opacity = '0.9';
+          }}
+          flashes += 1;
+          if (flashes > 9) {{
+            clearInterval(interval);
+            flashEl.remove();
+            document.body.style.backgroundColor = origBg;
+          }}
+        }}, 300);
       }}
 
       function finishTimer() {{
@@ -174,11 +200,16 @@ with right_col:
           clearInterval(intervalId);
           intervalId = null;
         }}
+        finished = true;
         if (MODE === 'Countdown') {{
           playAlarm();
           flashComplete();
           valueEl.textContent = '00:00';
           labelEl.textContent = 'TIME!';
+        }} else {{
+          // for count-up, just do a short alert
+          playAlarm();
+          flashComplete();
         }}
       }}
 
@@ -201,17 +232,26 @@ with right_col:
 
       function startTimer() {{
         if (intervalId) return;
-
+        // user gesture inside component - ensures audio can be used
         ensureAudio();
+        if (finished) {{
+          // restart after finish
+          remaining = TOTAL_SECONDS;
+          elapsed = 0;
+          finished = false;
+          labelEl.textContent = MODE;
+        }}
         if (MODE === 'Countdown') {{
           if (remaining <= 0) {{
             remaining = TOTAL_SECONDS;
           }}
           labelEl.textContent = 'Countdown';
+          updateDisplay();
           intervalId = setInterval(tickCountdown, 1000);
         }} else {{
           elapsed = 0;
           labelEl.textContent = 'Count Up';
+          updateDisplay();
           intervalId = setInterval(tickCountUp, 1000);
         }}
       }}
@@ -230,9 +270,20 @@ with right_col:
         }}
         remaining = TOTAL_SECONDS;
         elapsed = 0;
+        finished = false;
         labelEl.textContent = MODE;
         updateDisplay();
       }}
+
+      document.getElementById('enable-sound').onclick = function() {{
+        // Prime audio system with a short test beep - must be user gesture
+        ensureAudio();
+        playTest();
+        // give user feedback by briefly changing the enable button text
+        const btn = document.getElementById('enable-sound');
+        btn.textContent = 'Sound enabled';
+        setTimeout(() => btn.textContent = 'Enable sound', 1500);
+      }};
 
       document.getElementById('start').onclick = function() {{
         startTimer();
@@ -251,6 +302,7 @@ with right_col:
       document.getElementById('reset').onclick = function() {{
         resetTimer();
       }};
+
       document.getElementById('fullscreen').onclick = function() {{
         if (rootEl.requestFullscreen) {{
           rootEl.requestFullscreen();
